@@ -4,6 +4,7 @@ import requests
 import time
 import warnings
 import urllib.parse
+import urllib3
 
 
 """For testing purposes:
@@ -35,7 +36,7 @@ def retry_login(func, *args, **kwargs):
 
 
 class Controller(object):
-
+    MAX_LOGIN_RETRIES = 10
     """Interact with a UniFi controller.
 
     Uses the JSON interface on port 8443 (HTTPS) to communicate with a UniFi
@@ -141,16 +142,19 @@ class Controller(object):
 
         if version == 'v4' or version == 'v5':
             login_url += 'api/login'
-            # XXX Why doesn't passing in the dict work?
-            params = "{'username':'" + self.username
-            params += "', 'password':'" + self.password + "'}"
         else:
             raise APIError("Unknown controller version:", version)
 
-        r = self.session.post(login_url, params)
+        for retries in range(Controller.MAX_LOGIN_RETRIES):
+            try:
+                r = self.session.post(login_url, json=params, timeout=30)
 
-        if r.status_code is not 200:
-            raise APIError("Login failed - status code: %i" % r.status_code)
+                if r.status_code is not 200:
+                    raise APIError("Login failed - status code: %i" % r.status_code)
+                return
+            except urllib3.exceptions.ProtocolError as pe:
+                continue
+        raise APIError("Login failed - ProtocolErrors: %s" % str(pe))
 
     def _logout(self):
         log.debug('logout()')
@@ -230,7 +234,7 @@ class Controller(object):
     def get_sites(self):
         """Return a list of all sites,
         with their UID and description"""
-        
+
         return self._read(self.url + 'api/self/sites')
 
     def get_wlan_conf(self):
