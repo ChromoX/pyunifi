@@ -152,9 +152,9 @@ class Controller(object):
                 if r.status_code is not 200:
                     raise APIError("Login failed - status code: %i" % r.status_code)
                 return
-            except urllib3.exceptions.ProtocolError as pe:
+            except:
                 continue
-        raise APIError("Login failed - ProtocolErrors: %s" % str(pe))
+        raise APIError("Login failed - Unknown Errors")
 
     def _logout(self):
         log.debug('logout()')
